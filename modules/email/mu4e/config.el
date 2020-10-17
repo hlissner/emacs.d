@@ -181,7 +181,7 @@
         :ne "h" #'+workspace/other)
 
   (map! :map mu4e-headers-mode-map
-        :vne "l" #'mu4e/refile-msg-to-agenda)
+        :vne "l" #'+mu4e/refile-msg-to-agenda)
 
   (map! :localleader
         :map mu4e-compose-mode-map

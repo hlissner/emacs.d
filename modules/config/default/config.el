@@ -3,6 +3,10 @@
 (defvar +default-want-RET-continue-comments t
   "If non-nil, RET will continue commented lines.")
 
+(defvar +default-want-comment-end-on-new-line t
+  "If non-nil, RET will put */ on its own line.
+/* | */ RET -> /* \n * |\n*/.")
+
 (defvar +default-minibuffer-maps
   (append '(minibuffer-local-map
             minibuffer-local-ns-map
@@ -160,26 +164,24 @@
                      "<" ">"
                      :when '(+default-cc-sp-point-is-template-p
                              +default-cc-sp-point-after-include-p)
-                     :post-handlers '(("| " "SPC")))
-
-      (sp-local-pair '(c-mode c++-mode objc-mode java-mode)
-                     "/*!" "*/"
-                     :post-handlers '(("||\n[i]" "RET") ("[d-1]< | " "SPC"))))
+                     :post-handlers '(("| " "SPC"))))
 
     ;; Expand C-style comment blocks.
-    (defun +default-open-doc-comments-block (&rest _ignored)
-      (save-excursion
-        (newline)
-        (indent-according-to-mode)))
+    (defun +default-comment-spacing (&rest _)
+      "Insert \" | \", but without changing `this-command'.
+Useful in `smartparens' pairs."
+      (insert " ")
+      (save-excursion (insert " ")))
     (sp-local-pair
      '(js2-mode typescript-mode rjsx-mode rust-mode c-mode c++-mode objc-mode
-       csharp-mode java-mode php-mode css-mode scss-mode less-css-mode
-       stylus-mode scala-mode)
+                csharp-mode java-mode php-mode css-mode scss-mode less-css-mode
+                stylus-mode scala-mode)
      "/*" "*/"
      :actions '(insert)
-     :post-handlers '(("| " "SPC")
-                      (" | " "*")
-                      ("|[i]\n[i]" "RET")))
+     :post-handlers '(+default-comment-spacing
+                      ("[d-2]* |" "*")
+                      ("[d-2]! |" "!")
+                      ("||\n[i]" "RET")))
 
     (after! smartparens-ml
       (sp-with-modes '(tuareg-mode fsharp-mode)
@@ -239,17 +241,25 @@
 ;;      and remap to their own newline-and-indent commands, and tackling all
 ;;      those cases was judged to be more work than dealing with the edge cases
 ;;      on a case by case basis.
-(defadvice! +default--newline-indent-and-continue-comments-a (&rest _)
+(defadvice! +default--newline-indent-and-continue-comments-a (&optional arg &rest _)
   "A replacement for `newline-and-indent'.
 
 Continues comments if executed from a commented line. Consults
 `doom-point-in-comment-functions' to determine if in a comment."
   :before-until #'newline-and-indent
-  (interactive "*")
+  (interactive "*p")
   (when (and +default-want-RET-continue-comments
              (doom-point-in-comment-p)
              (fboundp comment-line-break-function))
-    (funcall comment-line-break-function nil)
+    (dotimes (_ (or arg 1))
+      (funcall comment-line-break-function nil))
+    (when (and +default-want-comment-end-on-new-line
+               (derived-mode-p 'c-mode 'c++-mode 'objc-mode 'rust-mode
+                               'java-mode 'javascript-mode 'js2-mode)
+               (looking-at-p "[[:space:]]*\\*+/"))
+      (save-excursion
+        (newline)
+        (indent-according-to-mode)))
     t))
 
 ;; This section is dedicated to "fixing" certain keys so that they behave

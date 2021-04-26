@@ -50,6 +50,10 @@
         (cond ((featurep! :completion ivy) #'ivy-completing-read)
               ((featurep! :completion helm) #'completing-read)
               (t #'ido-completing-read))
+        mu4e-attachment-dir
+        (expand-file-name (or (getenv "XDG_DOWNLOAD_DIR")
+                              "Downloads")
+                          "~")
         ;; no need to ask
         mu4e-confirm-quit nil
         mu4e-headers-thread-single-orphan-prefix '("─>" . "─▶")

@@ -49,6 +49,9 @@ easier to scroll through.")
       shr-put-image-function #'+rss-put-sliced-image-fn
       shr-external-rendering-functions '((img . +rss-render-image-tag-without-underline-fn))))
 
+  (when (featurep! +media)
+    (add-hook! 'elfeed-new-entry-hook #'+rss-podcast-tagger))
+
   ;; Keybindings
   (after! elfeed-show
     (define-key! elfeed-show-mode-map
@@ -58,7 +61,16 @@ easier to scroll through.")
     (evil-define-key 'normal elfeed-search-mode-map
       "q" #'elfeed-kill-buffer
       "r" #'elfeed-search-update--force
-      (kbd "M-RET") #'elfeed-search-browse-url)))
+      (kbd "M-RET") #'elfeed-search-browse-url))
+
+  (when (and (featurep! +media)
+             (featurep! :editor evil +everywhere))
+    (map!
+     (:map elfeed-show-mode-map
+      :n "y" #'+rss/show-youtube-dl)
+     (:map elfeed-search-mode-map
+      :n "y" #'+rss/search-youtube-dl
+      :n "L" #'youtube-dl-list))))
 
 
 (use-package! elfeed-org
@@ -76,3 +88,6 @@ easier to scroll through.")
         (dolist (file (cl-remove-if #'file-exists-p files))
           (message "elfeed-org: ignoring %S because it can't be read" file))
         (setq rmh-elfeed-org-files (cl-remove-if-not #'file-exists-p files))))))
+
+(use-package! youtube-dl
+  :when (featurep! +media))

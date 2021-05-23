@@ -63,6 +63,10 @@ font.")
     "\\\\" "://")
   "A list of ligatures to enable in all `prog-mode' buffers.")
 
+(defvar +ligatures-all-modes-list
+  '()
+  "A list of ligatures to enable in all buffers.")
+
 (defvar +ligatures-in-modes
   '(not special-mode comint-mode eshell-mode term-mode vterm-mode Info-mode)
   "List of major modes where ligatures should be enabled.
@@ -163,7 +167,8 @@ and cannot run in."
   (use-package! ligature
     :config
     ;; Enable all `+ligatures-prog-mode-list' ligatures in programming modes
-    (ligature-set-ligatures 'prog-mode +ligatures-prog-mode-list))
+    (ligature-set-ligatures 'prog-mode +ligatures-prog-mode-list)
+    (ligature-set-ligatures 't +ligatures-all-modes-list))
 
   (add-hook! 'doom-init-ui-hook :append
     (defun +ligature-enable-globally-h ()

@@ -226,11 +226,15 @@ want to use.
 #+begin_src elisp
 (after! ligature
   (ligature-set-ligatures '(haskell-mode clojure-mode) '(">>=")))
+
+;; Alternatively
+(set-ligatures! '(haskell-mode clojure-mode)
+  :font-ligatures '(">>="))
 #+end_src
 
 This call will:
-- overwrite all preceding calls to =ligature-set-ligatures= for =haskell-mode=
-  and =clojure-mode=, but
+- overwrite all preceding calls to =ligature-set-ligatures= or =set-ligatures!=
+  for =haskell-mode= and =clojure-mode=, but
 - keep the inheritance to ligatures set with =t= or parent modes like =prog-mode=
 
 *** Overwriting all default ligatures
@@ -241,18 +245,21 @@ happen in all modes, you can use
 ;; Set all your custom ligatures for all prog-modes here
 ;; This section is *out of* the after! block
 ;; Example: only get ligatures for "==" and "===" in programming modes
-;; by default
-(setq +ligatures-prog-mode-list '("==" "==="))
+;; by default, and get only "www" in all buffers by default.
+(setq +ligatures-prog-mode-list '("==" "===")
+      +ligatures-all-modes-list '("www"))
+;; Set any of those variables to nil to wipe all defaults.
 
 ;; All mode specific configuration go in the `after!' block
 (after! ligature
-  ;; Set all your additional custom ligatures for all major modes here.
-  ;; Example: enable the "www" ligature in every possible major mode
-  (ligature-set-ligatures 't '("www"))
   ;; Set all your additional custom ligatures for other major modes here.
   ;; Example: enable traditional ligature support in eww-mode, if the
   ;; `variable-pitch' face supports it
   (ligature-set-ligatures 'eww-mode '("ff" "fi" "ffi")))
+
+;; Alternatively
+(set-ligatures! 'eww-mode
+  :font-ligatures '("ff" "fi" "ffi"))
 #+end_src
 
 * TODO Troubleshooting

@@ -59,6 +59,8 @@ Note that this will keep all ligatures in `+ligatures-prog-mode-list' active, as
             (when-let (char (plist-get +ligatures-extra-symbols key))
               (push (cons (pop plist) char) results))))))
       (when (and (fboundp #'ligature-set-ligatures) font-ligatures)
+        (dolist (mode (doom-enlist modes))
+          (setq ligature-ignored-major-modes (delete mode ligature-ignored-major-modes)))
         (ligature-set-ligatures (doom-enlist modes) font-ligatures))
       (dolist (mode (doom-enlist modes))
         (setf (alist-get mode +ligatures-extra-alist)

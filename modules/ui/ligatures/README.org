@@ -16,8 +16,10 @@
   - [[#mathematical-symbols-replacement][Mathematical symbols replacement]]
   - [[#coding-ligatures][Coding ligatures]]
 - [[#configuration][Configuration]]
-  - [[#setting-ligatures][Setting ligatures]]
-  - [[#changing-ligatures][Changing ligatures]]
+  - [[#setting-symbol-replacements][Setting symbol replacements]]
+  - [[#changing-symbol-replacements][Changing symbol replacements]]
+  - [[#setting-ligatures-for-specific-font-or-major-mode][Setting ligatures for specific font or major mode]]
+    - [[#overwriting-all-default-ligatures][Overwriting all default ligatures]]
 - [[#troubleshooting][Troubleshooting]]
 
 * Description
@@ -53,7 +55,7 @@ Harfbuzz support (which can compose ligatures natively), or b) Mitsuharu's
 #+end_quote
 
 ** Plugins
-This module installs no packages.
+- [[https://github.com/mickeynp/ligature.el][ligature.el]] (on Emacs 28+ with Harfbuzz)
 
 * Prerequisites
 This module requires one of three setups for ligatures to work:
@@ -103,9 +105,9 @@ Even though harfbuzz has been included in emacs 27, there is currently a [[https
 emacs 27.
 
 * Configuration
-** Setting ligatures
-If you want to set ligatures for modules that don't have them by default you can
-use the ~set-ligatures!~ macro in your config el file
+** Setting symbol replacements
+If you want to set symbol replacements for modules that don't have them by
+default you can use the ~set-ligatures!~ macro in your config el file
 #+BEGIN_SRC emacs-lisp
 (after! PACKAGE
   (set-ligatures! 'MAJOR-MODE
@@ -167,7 +169,7 @@ If you have multiple versions of the same keyword you can set the symbol twice
   :null "none"
   :null "None")
 #+END_SRC
-** Changing ligatures
+** Changing symbol replacements
 if you don't like the symbols chosen you can change them by using...
 
 #+BEGIN_SRC emacs-lisp
@@ -211,6 +213,54 @@ if you don't like the symbols chosen you can change them by using...
   :pipe          "" ;; FIXME: find a non-private char
   :dot           "•")  ;; you could also add your own if you want
 #+END_SRC
+
+** Setting ligatures for specific font or major mode
+#+begin_quote
+You need Emacs 28+ with (MacOS or Harfbuzz) for EmacsLisp in this section to work.
+#+end_quote
+
+As the [[https://github.com/mickeynp/ligature.el][README]] for ligature.el states, you can manipulate the ligatures that you
+want to enable, specific for your font, or specific for the major modes that you
+want to use.
+
+#+begin_src elisp
+(after! ligature
+  (ligature-set-ligatures '(haskell-mode clojure-mode) '(">>=")))
+
+;; Alternatively
+(set-ligatures! '(haskell-mode clojure-mode)
+  :font-ligatures '(">>="))
+#+end_src
+
+This call will:
+- overwrite all preceding calls to =ligature-set-ligatures= or =set-ligatures!=
+  for =haskell-mode= and =clojure-mode=, but
+- keep the inheritance to ligatures set with =t= or parent modes like =prog-mode=
+
+*** Overwriting all default ligatures
+If you want to "start from scratch" and get control over all ligatures that
+happen in all modes, you can use
+
+#+begin_src elisp
+;; Set all your custom ligatures for all prog-modes here
+;; This section is *out of* the after! block
+;; Example: only get ligatures for "==" and "===" in programming modes
+;; by default, and get only "www" in all buffers by default.
+(setq +ligatures-prog-mode-list '("==" "===")
+      +ligatures-all-modes-list '("www"))
+;; Set any of those variables to nil to wipe all defaults.
+
+;; All mode specific configuration go in the `after!' block
+(after! ligature
+  ;; Set all your additional custom ligatures for other major modes here.
+  ;; Example: enable traditional ligature support in eww-mode, if the
+  ;; `variable-pitch' face supports it
+  (ligature-set-ligatures 'eww-mode '("ff" "fi" "ffi")))
+
+;; Alternatively
+(set-ligatures! 'eww-mode
+  :font-ligatures '("ff" "fi" "ffi"))
+#+end_src
 
 * TODO Troubleshooting
  If you have any problems with this module, do get in touch!

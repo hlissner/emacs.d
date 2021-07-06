@@ -5,7 +5,7 @@
   "Highlight company matches correctly, and try basic completion before orderless."
   :around 'company-capf--candidates
   (let ((orderless-match-faces [completions-common-part])
-        (completion-styles '(basic orderless)))
+        (completion-styles '(basic partial-completion orderless)))
     (apply fn args)))
 
 ;;;###autoload

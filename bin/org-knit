@@ -1,0 +1,381 @@
+#!/usr/bin/env sh
+":"; exec emacs --quick --script "$0" -- "$@" # -*- mode: emacs-lisp; lexical-binding: t; -*-
+;;; bin/org-knit
+
+;; Usage: org-knit [OPTIONS] [TARGETS...]
+;;
+;; A command line interface for weaving (exporting) and tangling org-mode files.
+;; TARGETS can be files of folders (which are searched for org files recursively).
+;;
+;; This is useful for automated generation of files,
+;; and integration with other scripts.
+;;
+;; Example:
+;;   org-knit some-file.org
+;;   org-knit -f pdf book/chapters/
+;;   org-knit -t -f ascii,md scripts.org
+;;
+;; Options:
+;;   -f --format FORMATS   Export formats (comma seperated, no space), html by default
+;;   -t --tangle           Also tangle the file(s).
+;;                         See org-tangle for more advanced functionallity
+;;   -e --exec             Execute src blocks in the file before exporting
+;;   -p --print            Print exported output to sdout rather than files
+;;   -c --clean            Delete all non-org files which share their basename
+;;   -l --load             Elisp files to load
+;;   -a --alias [FORMATS]  Give the org function called by a particlar alias.
+;;                         List all aliases when no format or other arguments are given
+
+(require 'cl-lib)
+(require 'ox)
+(require 'ob-tangle)
+
+(defun usage ()
+  (with-temp-buffer
+    (insert (format "%s %s [OPTIONS] [TARGETS...]\n"
+                    "[1mUsage:[0m"
+                    (file-name-nondirectory load-file-name))
+            "\n"
+            "A command line interface for weaving (exporting) and tangling org-mode files.\n"
+            "TARGETS can be files of folders (which are searched for org files recursively).\n"
+            "\n"
+            "This is useful for automated generation of files,\n"
+            "and integration with other scripts.\n"
+            "\n"
+            "[1mExample:[0m\n"
+            "  org-knit some-file.org\n"
+            "  org-knit -f pdf book/chapters/\n"
+            "  org-knit -t -f ascii,md scripts.org\n"
+            "\n"
+            "[1mOptions:[0m\n"
+            "  -f --format FORMATS\tExport formats (comma seperated, no space), [2mhtml[0m by default\n"
+            "  -t --tangle\t\tAlso tangle the file(s).\n"
+            "  \t\t\tSee [4morg-tangle[0m for more advanced functionallity\n"
+            "  -e --exec\t\tExecute src blocks in the file before exporting\n"
+            "  -p --print\t\tPrint exported output to sdout rather than files\n"
+            "  -c --clean\t\tDelete all non-org files which share their basename\n"
+            "  -l --load\t\tElisp files to load\n"
+            "  -a --alias [FORMATS]\tGive the org function called by a particlar alias.\n"
+            "  \t\t\tList all aliases when no format or other arguments are given\n"
+            )
+    (princ (buffer-string))))
+
+(defvar export-specs
+  '((html   :backend html   :extension ".html" :requires ox-html)
+    (md     :backend md     :extension ".md"   :requires ox-md)
+    (gfm    :backend gfm    :extension ".md"   :requires ox-gfm)
+    (rtf    :backend rtf    :extension ".rtf"  :requires ox-pandoc)
+    (ascii  :backend ascii  :extension ".txt"  :requires ox-ascii)
+    (pdf    :backend latex  :extension ".tex"  :requires ox-latex  :post-action org-latex-compile)
+    (beamer :backend beamer :extension ".tex"  :requires ox-beamer :post-action org-latex-compile)
+    (tex    :backend latex  :extension ".tex"  :requires ox-latex)
+    (latex  :backend latex  :extension ".tex"  :requires ox-latex)
+    (odt    :backend odt    :extension ".odt"  :requires ox-odt)
+    (org    :backend org    :extension ".org"  :requires ox-org)
+    (docx   :backend docx   :extension ".docx" :requires ox-pandoc)))
+
+(defun format-alias (alias)
+  (let ((name        (car alias))
+        (backend     (plist-get (cdr alias) :backend))
+        (ext         (plist-get (cdr alias) :extension))
+        (post-action (plist-get (cdr alias) :post-action))
+        (requirement (plist-get (cdr alias) :requires)))
+    (let ((requirement-avalible
+           (if requirement
+               (require requirement nil t)
+             t)))
+      (format "  [1m%-8s[0m\t%s%-16s\t[2m%s[0m%s\t%s"
+              name
+              (if requirement-avalible "" "[9m[2m")
+              (concat (symbol-name backend) "[0m")
+              ext
+              (if post-action
+                  (format "\t[0;34m+ %s[0m " (symbol-name post-action))
+                "")
+              (if requirement-avalible ""
+                (format "[0;33m(requires %s)[0m" (symbol-name requirement)))))))
+
+(defun print-alias (&optional aliases)
+  (with-temp-buffer
+    (insert
+     (format-alias '(Format :backend Backend :extension ".extension"))
+     "\n ──────────────────────────────────────────\n"
+     (replace-regexp-in-string
+      "\n--NONE--" ""
+      (mapconcat (lambda (alias)
+                   (if aliases
+                       (if (memq (car alias) aliases)
+                           (format-alias alias) "--NONE--")
+                     (format-alias alias)))
+                 export-specs "\n"))
+     "\n")
+    (princ (buffer-string))))
+
+(defvar export-progress nil
+  "Structure: ((file . ((backend . status) (backend . status)...)...)")
+
+(defun export-file (file spec)
+  "FILE to export according to SPEC plist (from `export-specs')"
+  (let ((pandoc-p (eq (plist-get (cdr spec) :requires) 'ox-pandoc))
+        (requirement (plist-get (cdr spec) :requires))
+        (backend     (plist-get (cdr spec) :backend))
+        (ext         (plist-get (cdr spec) :extension))
+        (post-action (plist-get (cdr spec) :post-action)))
+
+    (when requirement
+      (require requirement))
+
+    (if print (error "unimplemented")
+      (let ((out-file (org-export-output-file-name ext nil)))
+        (if pandoc-p
+            (org-pandoc-export backend async nil nil nil nil nil)
+          (+org-export-to-file backend out-file async nil nil nil nil post-action (car spec) file))))))
+
+
+(defun +org-export-to-file (backend file &optional async subtreep visible-only body-only ext-plist post-process +format +infile)
+  (if (and +format (not (eq backend 'pandoc)))
+      (progn
+        (set-state +infile +format 'started)
+        (funcall #'org-export-to-file
+                 backend file async subtreep visible-only body-only ext-plist
+                 (lambda (file)
+                   (when post-process
+                     (funcall post-process file))
+                   (set-state +infile +format 'completed))))
+    (funcall #'org-export-to-file backend file async subtreep visible-only body-only ext-plist post-process)))
+
+(defun set-state (file format state)
+  (unless (listp format)
+    (setq format (list format)))
+  (dolist (fmt format)
+    (setf (cdr (assoc fmt (cdr (assoc file export-progress)))) state))
+  (export-progress-table)
+  (sleep-for 0.1))
+
+(defvar last-progress 0)
+(defvar export-progress-states
+  '((waiting . "[0;33m⠶[0m")
+    (progress-colour . "[0;36m")
+    (progress-progression . ("⠖" "⠲" "⠴" "⠦"))
+    (started . nil)
+    (executing . "[0m⠶[0m")
+    (tangling . "[0;35m⠶[0m")
+    (completed . "[0;32m✓[0m")
+    (error . "[0;31m![0m")))
+
+(defun export-progress-table ()
+  (setq last-progress (1+ last-progress))
+  (setf (cdr (assoc 'started export-progress-states))
+        (concat (cdr (assoc 'progress-colour export-progress-states))
+                (nth (% last-progress
+                        (length (cdr (assoc 'progress-progression export-progress-states))))
+                     (cdr (assoc 'progress-progression export-progress-states)))
+                "[0m"))
+  (with-temp-buffer
+    (insert
+     (if (> last-progress 1)
+         (apply #'concat (make-list (1+ (length export-progress)) "[1A[K"))
+       "")
+     "[1mFile\t\t"
+     (mapconcat (lambda (fmt) (format "%s\t" fmt)) formats "")
+     "[0m\n"
+     (mapconcat
+      (lambda (f)
+        (concat
+         (car f) "\t"
+         (mapconcat
+          (lambda (state)
+            (cdr (assoc (cdr state) export-progress-states)))
+          (cdr f) "\t")
+         ))
+      export-progress "\n")
+     "\n"
+     )
+    (princ (buffer-string))))
+
+(defvar recorded-errors nil
+  "Structure: ((file . ((stage . (msg1 msg2...))...)...)")
+(defun record-error (file stage message)
+  "Record error MESSAGE with FILE at STAGE to `recorded-errors'."
+  (if-let ((file-entry (assoc file recorded-errors)))
+      (if-let ((stage-entry (assoc stage (cdr file-entry))))
+          (push message (cdr stage-entry))
+        (push (cons stage (list message)) (cdr file-entry)))
+    (push (cons file (list (cons stage (list message)))) recorded-errors)))
+(defun print-errors ()
+  "Print all `recorded-errors'."
+  (with-temp-buffer
+    (insert
+     "\n[1;31mErrors:[0m\n"
+     (mapconcat
+      (lambda (file-errs)
+        (let* (errs-stages current-stages)
+          (dolist (stage (cdr file-errs))
+            (dolist (err (cdr stage))
+              (if (assoc err errs-stages)
+                  (progn
+                    (push (car stage) (cdr (assoc err errs-stages)))
+                    (sort (cdr (assoc err errs-stages))
+                          (lambda (a b)
+                            (< (cl-position (intern a) formats)
+                               (cl-position (intern b) formats)))))
+                (push (cons err (list (car stage))) errs-stages))))
+          (sort errs-stages
+                (lambda (a b)
+                  (or (< (cl-position (intern (cadr a)) formats)
+                         (cl-position (intern (cadr b)) formats)))
+                  (> (length a) (length b))))
+          (mapconcat
+           (lambda (err-stages)
+             (concat
+              (unless (string= (car err-stages) current-stages)
+                (format " [0;31m%s[0m ([0;33m%s[0m):\n"
+                        (car file-errs)
+                        (mapconcat 'identity (cdr err-stages) ",")))
+              "    "
+              (replace-regexp-in-string
+               "\\(\".*[^\\]\"\\)"
+               "[0;32m\\1[0m" (car err-stages))))
+           errs-stages "\n")))
+      (sort recorded-errors
+            (lambda (a b)
+              (< (cl-position a files :test #'string=)
+                 (cl-position b files :test #'string=))))
+      "\n") "\n")
+    (princ (buffer-string))))
+
+(defvar export-print nil)
+(defvar tangle nil)
+(defvar print nil)
+(defvar exec nil)
+(defvar async t)
+(defvar formats nil)
+(defvar files nil)
+(defvar clean nil)
+(defvar load-files nil)
+
+(let ((inhibit-message t))
+  (pop argv)
+  (while argv
+    (let ((arg (pop argv)))
+      (pcase arg
+        ((or "-h" "--help")
+         (usage)
+         (kill-emacs 0))
+        ((or "-f" "--formats")
+         (setq formats
+               (mapcar #'intern (split-string (pop argv) ","))))
+        ((or "-t" "--tangle")
+         (setq tangle t))
+        ((or "-e" "--exec")
+         (setq exec t))
+        ((or "-s" "--sync")
+         (setq async nil))
+        ((or "-p" "--print")
+         (setq export-print t))
+        ((or "-a" "--alias")
+         (let ((aliases (pop argv)))
+           (when aliases
+             (setq aliases
+                   (mapcar #'intern (split-string aliases ","))))
+           (print-alias aliases))
+         (kill-emacs 0))
+        ((or "-c" "--clean")
+         (setq clean t))
+        ((or "-l" "--load")
+         (let ((f (pop argv)))
+           (when (file-exists-p f)
+             (push f load-files))))
+        ((or "-d" "--debug")
+         (setq debug-on-error t))
+        ((guard (file-exists-p arg))
+         (push arg files))
+        (_ (error "Unknown option or file: %s" arg)))))
+
+  (if (eq files nil)
+      (error "No target files provided"))
+  (setq files (reverse files))
+
+  (dolist (location files)
+    (when (file-directory-p location)
+      (setq files
+            (append (remove location files)
+                    (directory-files-recursively location "\\.org\\'" nil)))))
+
+  (dolist (file files)
+    (setq export-progress
+          (append export-progress
+                  (list (append (list file)
+                                (apply #'append
+                                       (mapcar
+                                        (lambda (f) (list (cons f 'waiting)))
+                                        formats)))))))
+
+  (unless clean
+    (export-progress-table)
+    (dolist (l load-files)
+      (load l nil t)))
+
+  (setq org-export-async-init-file (make-temp-file "org-async-export"))
+  (with-temp-file org-export-async-init-file
+    (prin1 `(progn (setq org-export-async-debug ,debug-on-error
+                         load-path ',load-path)
+                   (load ,user-init-file nil t))
+           (current-buffer)))
+
+  (dolist (file files)
+    (let ((backup (make-temp-file (file-name-base file) nil ".backup.org"))
+          (file-basename (file-name-base file))
+          (org-confirm-babel-evaluate nil))
+      (if clean
+          (dolist (child-file (directory-files (file-name-directory (expand-file-name file))))
+            (when (and
+                   (string= (file-name-base child-file) file-basename)
+                   (not (string= (file-name-extension child-file) "org")))
+              (princ (format "Deleting %s\n" child-file))
+              (delete-file child-file)))
+        (unwind-protect
+            ;; Prevent slow hooks from interfering
+            (let (org-mode-hook)
+              ;; We do the ol' switcheroo because `org-babel-tangle' writes
+              ;; changes to the current file, which would be imposing on the user.
+              (copy-file file backup t)
+              (with-current-buffer (find-file-noselect file)
+
+                (when exec
+                  (set-state file formats 'executing)
+
+                  (org-babel-eval-wipe-error-buffer)
+                  (org-save-outline-visibility t
+                    (org-babel-map-executables nil
+                      (condition-case err
+                          (if (memq (org-element-type (org-element-context))
+                                    '(babel-call inline-babel-call))
+                              (org-babel-lob-execute-maybe)
+                            (ignore-errors
+                              (org-babel-execute-src-block t)))
+                        (err
+                         (record-error file "exec" (error-message-string err)))))))
+
+                (when tangle
+                  (set-state file formats 'tangling)
+                  (condition-case err
+                      (org-babel-tangle nil nil nil)
+                    (error (record-error file "tangle" (error-message-string err)))))
+
+                (set-state file formats 'waiting)
+                (org-export-expand-include-keyword)
+                (dolist (fmt formats)
+                  (condition-case err
+                      (export-file file (assoc fmt export-specs))
+                    (error
+                     (record-error file (symbol-name fmt) (error-message-string err))
+                     (set-state file fmt 'error))))))
+          (ignore-errors (copy-file backup file t))
+          (ignore-errors (delete-file backup))))))
+  (export-progress-table)
+
+  (if (not recorded-errors)
+      (kill-emacs 0)
+    (print-errors)
+    (kill-emacs 1)))

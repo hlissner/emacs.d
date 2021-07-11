@@ -52,6 +52,15 @@
   :after elixir-mode
   :config (flycheck-credo-setup))
 
+(eval-when! (featurep! +alchemist)
+  (use-package! alchemist
+    :hook (elixir-mode . alchemist-mode)
+    :config
+    (set-lookup-handlers! 'alchemist-mode
+      :definition #'alchemist-goto-definition-at-point
+      :documentation #'alchemist-help-search-at-point)
+    (set-eval-handler! 'alchemist-mode #'alchemist-eval-region)
+    (set-repl-handler! 'alchemist-mode #'alchemist-iex-project-run))
 
 (use-package! alchemist
   :hook (elixir-mode . alchemist-mode)
@@ -73,7 +82,6 @@
          "r" #'alchemist-iex-send-region
          "l" #'alchemist-iex-send-current-line
          "R" #'alchemist-iex-reload-module)))
-
 
 (use-package! alchemist-company
   :when (featurep! :completion company)

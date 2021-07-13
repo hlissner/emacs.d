@@ -100,6 +100,8 @@ Enable the [[file:../../../modules/editor/format/README.org][:editor format]] mo
 rustfmt. No additional configuration is necessary.
 
 ** Keybinds
+Note that =<localleader>= is =SPC m= or =C-c l= by default.
+
 | Binding             | Description                 |
 |---------------------+-----------------------------|
 | ~<localleader> b a~ | ~cargo audit~               |

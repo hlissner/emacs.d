@@ -40,8 +40,16 @@ us know!
 - [[#update--rollback][Update & Rollback]]
   - [[#rollback][Rollback]]
   - [[#updowngrading-emacs][Up/Downgrading Emacs]]
+- [[#new-user-introduction][New User Introduction]]
+  - [[#editing-commands][Editing commands]]
+  - [[#menus--commands][Menus & Commands]]
+    - [[#context-specific-commands][Context-specific commands]]
+  - [[#getting-help][Getting Help]]
+  - [[#tour-of-features][Tour of features]]
 - [[#migrate][Migrate]]
   - [[#from-vanilla-emacs][From vanilla Emacs]]
+  - [[#keybindings-and-to-be-evil-or-not][Keybindings (and to be evil or not)]]
+  - [[#configuration][Configuration]]
   - [[#from-spacemacs][From Spacemacs]]
 - [[#configure][Configure]]
   - [[#modules][Modules]]
@@ -563,7 +571,8 @@ Use ~M-x doom/help-modules~ (bound to =SPC h d m= or =C-h d m=) to jump to a
 module's documentation from within Doom, otherwise, place your cursor on a
 module in your ~doom!~ block (in =~/.doom.d/init.el=) and press =K= to jump to
 its documentation (or =gd= to jump to its source code). =C-c g k= and =C-c g d=
-for non-evil users, respectively.
+for non-evil users, respectively.  The equals signs you see here are typesetting
+hints and are not to be typed directly.
 #+end_quote
 
 * Update & Rollback
@@ -610,6 +619,100 @@ the major version (e.g. 27 -> 28 or vice versa) run ~doom build~ too.
   (e.g. 27 -> 28). Alternatively, reinstall all your packages by deleting
   =~/.emacs.d/.local=, then run ~doom sync~.
 
+* New User Introduction
+
+Now, launch Emacs and you'll see Doom ready to run!
+
+** Editing commands
+
+If you're not familiar with vi-style (also known as vim) keybindings, which are
+provided by "Evil mode" in Emacs, you might want to look at [[https://raw.githubusercontent.com/syl20bnr/evil-tutor/master/tutor.txt][the Emacs Evil
+tutor]]. (You can also have more familiar key bindings; see [[file:faq.org][the FAQ]] for details.)
+
+In a nutshell, vim-style keybindings are *modal*; you are (generally) either in
+insert mode or command mode.  In insert mode, the letters on your keyboard
+insert text into a document like you might be used to.  In command mode, the
+letters on your keyboard activate commands and can even be used to move around
+the document, perform searches, and so forth.  In Doom, you can use the arrow
+keys, backspace keys, etc. that you are used to in insert mode as well.
+
+By default, you are in command mode.  Press =i= to enter insert mode and =ESC=
+to return to command mode.
+
+There are two systems for entering more complex commands in command mode: Doom's
+(which I'll describe below) and the vim system.  vim commands start with a colon
+and are things such as =:help= or =:q=.
+
+** Menus & Commands
+
+Doom Emacs provides a way to access a vast array of commands.  By default, you
+can press =SPC= to access these commands (non-Evil users use =C-c=).  This is
+both a shortcut system and a menu.  If you just press =SPC= and wait a moment,
+you will see a list of options for the next character you can press, leading you
+into submenus.  As you use Doom more, you'll remember the characters for these
+commands and can activate them very quickly.  If you ever get stuck, press =C-g=
+to abort your partially-entered command.
+
+Seasoned Emacs users will also recognize most of your familiar keybindings are
+also available simultaneously with the Evil and Doom ones.  For instance, to
+open a file, an Evil user could use three different options: =SPC .=, =:e=,
+and =C-x C-f=.
+
+Some parts of the Doom menus have so many options they require multiple screens.
+See the bottom of your screen for instructions on displaying subsequent screens
+of options; the =C-h= command while viewing menus will show you how.
+
+*** Context-specific commands
+
+While most commands in the Doom system are always available, there are some that
+are specific to context.  They vary depending on what kind of file you're
+editing or what kind of major mode you're in.  These are called "localleader"
+commands.  You can access the localleader menu with =SPC m= or =C-c l=.
+
+** Getting Help
+
+There are several ways you can get more assistance within Doom Emacs:
+
+  - Open the Doom documentation with =SPC h d h=
+  - For vim colon commands, type =:help :COMMAND= - for instance, =:help :q=.
+  - For Emacs commands, type =SPC k COMMAND= - for instance, =SPC k C-x C-c=.
+  - Some additional hints on actions in your current context, open the context
+    menu with the F10 key
+
+** Tour of features
+
+Here are some of the features you'll find enabled by default in Doom Emacs,
+along with links to documentation about them:
+
+- Universal autocomplete support is integrated throughout the editor.  By
+  default, it uses ivy.  See the [[file:../modules/completion/ivy/README.org][Doom documentation]] and this [[https://writequit.org/denver-emacs/presentations/2017-04-11-ivy.html][intro to ivy]] for
+  more details.
+- While ivy provides autocomplete for commands (things like opening files),
+  there is also autocomplete while you /type/.  That is provided by a package
+  called company.  See the [[file:../modules/completion/company/README.org][Doom documentation]] or [[http://company-mode.github.io/][homepage]] for more detail.  You
+  may find the =company-idle-delay= parameter relevant to your configuration.
+- Fantastic search is integrated throughout.  It can easily search and narrow
+  down within projects, directory trees, and so forth.  Try it out with =SPC
+  s=.  =SPC s d= will search your directory, =SPC s p= your project, etc.  And
+  it's FAST.
+- While we're at it, Doom has a notion of projects using [[https://github.com/bbatsov/projectile][projectile]].  Access the
+  project menu with =SPC p=.
+- There's even more along those lines: [[file:../modules/ui/workspaces/README.org][workspaces]].  Think of a workspace in
+  Emacs as like a virtual desktop on your computer.  It lets you group your
+  buffers by task (or whatever else you like).  It's based on [[https://github.com/Bad-ptr/persp-mode.el][persp-mode]] and you
+  can get to the workspace menu with =SPC TAB=.
+- Org-mode, the... how do you even describe it? ... thing that organizes your
+  task lists, your knowledge base, and is a markup language that can export to
+  LaTeX and HTML and all sorts of things.  See the
+  [[file:../modules/lang/org/README.org][Doom documentation]] and [[https://orgmode.org/][project homepage]].
+- Definition lookup and cross-referencing.  While editing code, look up the
+  documentation or definition for something, or all the users of it.  While
+  editing text, look up the dictionary definition of a word or see it in a
+  thesaurus.  See the [[file:../modules/tools/lookup/README.org][Doom documentation]] for details.  And try out
+  =g d= when you're curious!  With LSP language support, it will map directly to
+  LSP commands and give you quite a dose of awesomeness.
+- Native support for version control systems, and particularly Git.
+
 * TODO Migrate
 If you're here from another Emacs distribution (or your own), here are a few
 things to be aware of while you convert your old config to Doom:
@@ -629,6 +732,39 @@ Have you migrated from your own config? Help me flesh out this section by
 letting me know what kind of hurdles you faced in doing so. You'll find me [[https://discord.gg/qvGgnVx][on
 our Discord server]].
 #+end_quote
+
+When migrating from vanilla Emacs, here are some general tips to consider:
+
+** Keybindings (and to be evil or not)
+
+One of the benefits of Doom is a predefined set of consistent Evil keybindings
+across many Emacs major modes.  This saves you the effort of having to do it
+yourself and makes the transition to evil-mode a lot less cumbersome.
+
+However, if vim keybindings are not for you, the FAQ describes how to disable
+evil-mode.  Doom Emacs is perfectly operational without it.  Note, however, that
+Doom without evil-mode will take over some of the =C-c= subcommands you may be
+used to, adding its own.  However, its context-sensitive help menus are
+pervasive across Emacs, not just in Doom, and you may find this discoverability
+very helpful.
+
+Either way, many Emacs keybindings will remain available to you.  For instance,
+=C-x C-f= still works in both evil mode and not, even though by default there
+are a myraid other ways to access this functionality: =SPC .=, =SPC f f=,
+=:e filename=, etc.
+
+I found it helpful to keep my previous Emacs around.  When I was trying to find
+the key for something in Doom, I could use the old Emacs, press =C-h C-k= to
+find out what function a key called, and then use =C-h f= in Doom to look up
+that function and see what keys were bound to it in Doom.
+
+** Configuration
+
+As you migrate your own configuration, grep for settings you may be using
+underneath Doom's =modules= directory.  You may find that quite a few things you
+have been setting are already defined in Doom, or may be defaulting to other
+things.  I suggest trying things Doom's way to start with and then adapting to
+your own preferences if needed.
 
 ** TODO From Spacemacs
 #+begin_quote

@@ -19,7 +19,6 @@
   :after vertico)
 
 (use-package! orderless
-  :demand t
   :config
   (defun +vertico-orderless-dispatch (pattern _index _total)
     (cond
@@ -157,9 +156,8 @@
 
 (use-package! embark-consult
   :after (embark consult)
-  :demand t
-  :hook
-  (embark-collect-mode . consult-preview-at-point-mode))
+  :config
+  (add-hook 'embark-collect-mode-hook #'consult-preview-at-point-mode))
 
 (use-package! wgrep
   :commands wgrep-change-to-wgrep-mode

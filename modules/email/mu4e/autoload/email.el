@@ -15,6 +15,7 @@ OPTIONAL:
  + `mu4e-trash-folder'
  + `mu4e-refile-folder'
  + `mu4e-compose-signature'
+ + `+mu4e-personal-addresses'
 
 DEFAULT-P is a boolean. If non-nil, it marks that email account as the
 default/fallback account."
@@ -42,9 +43,8 @@ default/fallback account."
       context)))
 
 
-
 (defvar +mu4e-workspace-name "*mu4e*"
-  "TODO")
+  "Name of the workspace created by `=mu4e', dedicated to mu4e.")
 (defvar +mu4e--old-wconf nil)
 
 (add-hook 'mu4e-main-mode-hook #'+mu4e-init-h)
@@ -55,7 +55,13 @@ default/fallback account."
   (interactive)
   (require 'mu4e)
   (if (featurep! :ui workspaces)
-      (+workspace-switch +mu4e-workspace-name t)
+      ;; delete current workspace if empty
+      ;; this is useful when mu4e is in the daemon
+      ;; as otherwise you can accumulate empty workspaces
+      (progn
+        (unless (+workspace-buffer-list)
+          (+workspace-delete (+workspace-current-name)))
+        (+workspace-switch +mu4e-workspace-name t))
     (setq +mu4e--old-wconf (current-window-configuration))
     (delete-other-windows)
     (switch-to-buffer (doom-fallback-buffer)))
@@ -71,6 +77,247 @@ default/fallback account."
   ;; TODO Interactively select email account
   (call-interactively #'mu4e-compose-new))
 
+;; Icons need a bit of work
+;; Spacing needs to be determined and adjucted
+;;;###autoload
+(defun +mu4e--get-string-width (str)
+  "Return the width in pixels of a string in the current
+window's default font. If the font is mono-spaced, this
+will also be the width of all other printable characters."
+  (let ((window (selected-window))
+        (remapping face-remapping-alist))
+    (with-temp-buffer
+      (make-local-variable 'face-remapping-alist)
+      (setq face-remapping-alist remapping)
+      (set-window-buffer window (current-buffer))
+      (insert str)
+      (car (window-text-pixel-size)))))
+
+;;;###autoload
+(cl-defun +mu4e-normalised-icon (name &key set color height v-adjust)
+  "Convert :icon declaration to icon"
+  (let* ((icon-set (intern (concat "all-the-icons-" (or set "faicon"))))
+         (v-adjust (or v-adjust 0.02))
+         (height (or height 0.8))
+         (icon (if color
+                   (apply icon-set `(,name :face ,(intern (concat "all-the-icons-" color)) :height ,height :v-adjust ,v-adjust))
+                 (apply icon-set `(,name  :height ,height :v-adjust ,v-adjust))))
+         (icon-width (+mu4e--get-string-width icon))
+         (space-width (+mu4e--get-string-width " "))
+         (space-factor (- 2 (/ (float icon-width) space-width))))
+    (concat (propertize " " 'display `(space . (:width ,space-factor))) icon)))
+
+;; Set up all the fancy icons
+;;;###autoload
+(defun +mu4e-initialise-icons ()
+  (setq mu4e-use-fancy-chars t
+        mu4e-headers-draft-mark      (cons "D" (+mu4e-normalised-icon "pencil"))
+        mu4e-headers-flagged-mark    (cons "F" (+mu4e-normalised-icon "flag"))
+        mu4e-headers-new-mark        (cons "N" (+mu4e-normalised-icon "sync" :set "material" :height 0.8 :v-adjust -0.10))
+        mu4e-headers-passed-mark     (cons "P" (+mu4e-normalised-icon "arrow-right"))
+        mu4e-headers-replied-mark    (cons "R" (+mu4e-normalised-icon "arrow-right"))
+        mu4e-headers-seen-mark       (cons "S" "") ;(+mu4e-normalised-icon "eye" :height 0.6 :v-adjust 0.07 :color "dsilver"))
+        mu4e-headers-trashed-mark    (cons "T" (+mu4e-normalised-icon "trash"))
+        mu4e-headers-attach-mark     (cons "a" (+mu4e-normalised-icon "file-text-o" :color "silver"))
+        mu4e-headers-encrypted-mark  (cons "x" (+mu4e-normalised-icon "lock"))
+        mu4e-headers-signed-mark     (cons "s" (+mu4e-normalised-icon "certificate" :height 0.7 :color "dpurple"))
+        mu4e-headers-unread-mark     (cons "u" (+mu4e-normalised-icon "eye-slash" :v-adjust 0.05))))
+
+;;;###autoload
+(defun +mu4e-colorize-str (str &optional unique herring)
+  "Apply a face from `+mu4e-header-colorized-faces' to STR.
+If HERRING is set, it will be used to determine the face instead of STR.
+Will try to make unique when non-nil UNIQUE,
+a quoted symbol for a alist of current strings and faces provided."
+  (unless herring
+    (setq herring str))
+  (put-text-property
+   0 (length str)
+   'face
+   (if (not unique)
+       (+mu4e--str-color-face herring str)
+     (let ((unique-alist (eval unique)))
+       (unless (assoc herring unique-alist)
+         (if (> (length unique-alist) (length +mu4e-header-colorized-faces))
+             (push (cons herring (+mu4e--str-color-face herring)) unique-alist)
+           (let ((offset 0) color color?)
+             (while (not color)
+               (setq color? (+mu4e--str-color-face herring offset))
+               (if (not (rassoc color? unique-alist))
+                   (setq color color?)
+                 (setq offset (1+ offset))
+                 (when (> offset (length +mu4e-header-colorized-faces))
+                   (message "Warning: +mu4e-colorize-str was called with non-unique-alist UNIQUE-alist alist.")
+                   (setq color (+mu4e--str-color-face herring)))))
+             (push (cons herring color) unique-alist)))
+         (set unique unique-alist))
+       (cdr (assoc herring unique-alist))))
+   str)
+  str)
+
+;;;###autoload
+(defun +mu4e--str-color-face (str &optional offset)
+  "Select a face from `+mu4e-header-colorized-faces' based on
+STR and any integer OFFSET."
+  (let* ((str-sum (apply #'+ (mapcar (lambda (c) (% c 3)) str)))
+         (color (nth (% (+ str-sum (if offset offset 0))
+                        (length +mu4e-header-colorized-faces))
+                     +mu4e-header-colorized-faces)))
+    color))
+
+(defvar +org-capture-emails-file "todo.org"
+  "Default target for storing mu4e emails captured from within mu4e.
+Requires a \"* Email\" heading be present in the file.")
+
+;; Adding emails to the agenda
+;; Perfect for when you see an email you want to reply to
+;; later, but don't want to forget about
+;;;###autoload
+(defun +mu4e/capture-msg-to-agenda (arg)
+  "Refile a message and add a entry in `+org-capture-emails-file' with a
+deadline.  Default deadline is today.  With one prefix, deadline
+is tomorrow.  With two prefixes, select the deadline."
+  (interactive "p")
+  (let ((sec "^* Email")
+        (msg (mu4e-message-at-point)))
+    (when msg
+      ;; put the message in the agenda
+      (with-current-buffer (find-file-noselect
+                            (expand-file-name +org-capture-emails-file org-directory))
+        (save-excursion
+          ;; find header section
+          (goto-char (point-min))
+          (when (re-search-forward sec nil t)
+            (let (org-M-RET-may-split-line
+                  (lev (org-outline-level))
+                  (folded-p (invisible-p (point-at-eol)))
+                  (from (plist-get msg :from)))
+              ;; place the subheader
+              (when folded-p (show-branches))    ; unfold if necessary
+              (org-end-of-meta-data) ; skip property drawer
+              (org-insert-todo-heading 1)        ; insert a todo heading
+              (when (= (org-outline-level) lev)  ; demote if necessary
+                (org-do-demote))
+              ;; insert message and add deadline
+              (insert (concat " Respond to "
+                              "[[mu4e:msgid:"
+                              (plist-get msg :message-id) "]["
+                              (truncate-string-to-width
+                               (or (caar from) (cadr from)) 25 nil nil t)
+                              " - "
+                              (truncate-string-to-width
+                               (plist-get msg :subject) 40 nil nil t)
+                              "]] "))
+              (org-deadline nil
+                            (cond ((= arg 1) (format-time-string "%Y-%m-%d"))
+                                  ((= arg 4) "+1d")))
+
+              (org-update-parent-todo-statistics)
+
+              ;; refold as necessary
+              (if folded-p
+                  (progn
+                    (org-up-heading-safe)
+                    (hide-subtree))
+                (hide-entry))))))
+      ;; refile the message and update
+      ;; (cond ((eq major-mode 'mu4e-view-mode)
+      ;;        (mu4e-view-mark-for-refile))
+      ;;       ((eq major-mode 'mu4e-headers-mode)
+      ;;        (mu4e-headers-mark-for-refile)))
+      (message "Refiled \"%s\" and added to the agenda for %s"
+               (truncate-string-to-width
+                (plist-get msg :subject) 40 nil nil t)
+               (cond ((= arg 1) "today")
+                     ((= arg 4) "tomorrow")
+                     (t         "later"))))))
+
+;;;###autoload
+(defun +mu4e/attach-files (&optional files-to-attach)
+  "When called in a dired buffer, ask for a message to attach the marked files to.
+When called in a mu4e:compose or org-msg buffer, `read-file-name'to either
+attach a file, or select a folder to open dired in and select file attachments
+(using `dired-mu4e-attach-ctrl-c-ctrl-c').
+
+When otherwise called, open a dired buffer and enable `dired-mu4e-attach-ctrl-c-ctrl-c'."
+  ;; TODO add ability to attach files (+dirs) as a single (named) archive
+  (interactive "p")
+  (mu4e-compose-org-msg-handle-toggle (/= 1 files-to-attach))
+  (pcase major-mode
+    ((or 'mu4e-compose-mode 'org-msg-edit-mode)
+     (let ((mail-buffer (current-buffer))
+           (location (read-file-name "Attach: ")))
+       (if (not (file-directory-p location))
+           (pcase major-mode
+             ('mu4e-compose-mode
+              (save-excursion
+                (goto-char (point-max))
+                (unless (eq (current-column) 0)
+                  (insert "\n\n")
+                  (forward-line 2))
+                (mail-add-attachment location)))
+             ('org-msg-edit-mode (org-msg-attach-attach location)))
+         (split-window-sensibly)
+         (with-current-buffer (dired location)
+           (setq-local dired-mail-buffer mail-buffer)
+           (dired-mu4e-attach-ctrl-c-ctrl-c 1)))))
+    ('dired-mode
+     (unless (and files-to-attach (/= 1 files-to-attach))
+       (setq files-to-attach
+             (delq nil
+                   (mapcar
+                    ;; don't attach directories
+                    (lambda (f) (if (file-directory-p f) nil f))
+                    (nreverse (dired-map-over-marks (dired-get-filename) nil))))))
+     (if (not files-to-attach)
+         (progn
+           (message "No files marked, aborting.")
+           (kill-buffer-and-window))
+       (if-let ((mail-target-buffer (bound-and-true-p dired-mail-buffer)))
+           (progn (kill-buffer-and-window)
+                  (switch-to-buffer mail-target-buffer))
+         (if (and (+mu4e-current-buffers)
+                  (y-or-n-p "Attach files to existing mail composition buffer? "))
+             (progn (setf mail-target-buffer
+                          (completing-read "Message: " (+mu4e-current-buffers)))
+                    (kill-buffer-and-window)
+                    (switch-to-buffer mail-target-buffer))
+           (kill-buffer-and-window)
+           (mu4e-compose 'new)))
+       (mapcar
+        (pcase major-mode
+          ('mu4e-compose-mode #'mail-add-attachment)
+          ('org-msg-edit-mode #'org-msg-attach-attach))
+        files-to-attach)))
+    (_
+     (split-window-sensibly)
+     (with-current-buffer (call-interactively #'find-file)
+       (dired-mu4e-attach-ctrl-c-ctrl-c 1)))))
+
+;;;###autoload
+(define-minor-mode dired-mu4e-attach-ctrl-c-ctrl-c
+  "Adds C-c C-c as an keybinding to attach files to a message."
+  :lighter "attach"
+  :keymap (let ((map (make-sparse-keymap)))
+            (define-key map (kbd "C-c C-c") '+mu4e/attach-files)
+            map)
+  (setq header-line-format
+        (when dired-mu4e-attach-ctrl-c-ctrl-c
+          (substitute-command-keys
+           "Mu4e attach active. `\\[+mu4e/attach-files]' to attach the marked files."))))
+
+;;;###autoload
+(defun +mu4e-current-buffers ()
+  "Return a list of active message buffers."
+  (let (buffers)
+    (save-current-buffer
+      (dolist (buffer (buffer-list t))
+        (set-buffer buffer)
+        (when (or (and (derived-mode-p 'message-mode)
+                       (null message-sent-message-via))
+                  (eq major-mode 'org-msg-edit-mode))
+          (push (buffer-name buffer) buffers))))
+    (nreverse buffers)))
 
 ;;
 ;; Hooks
@@ -87,3 +334,29 @@ default/fallback account."
    (+mu4e--old-wconf
     (set-window-configuration +mu4e--old-wconf)
     (setq +mu4e--old-wconf nil))))
+
+;;;###autoload
+(defun +mu4e-set-from-address-h ()
+  "Set the account for composing a message. If a 'To' header is present,
+and correspands to an email address, this address will be selected.
+Otherwise, the user is prompted for the address they wish to use. Possible
+selections come from the mu database or a list of email addresses associated
+with the current context."
+  (unless (and mu4e-compose-parent-message
+               (let ((to (cdr (car (mu4e-message-field mu4e-compose-parent-message :to))))
+                     (from (cdr (car (mu4e-message-field mu4e-compose-parent-message :from)))))
+                 (if (member to (mu4e-personal-addresses))
+                     (setq user-mail-address to)
+                   (if (member from (mu4e-personal-addresses))
+                       (setq user-mail-address from)
+                     nil))))
+    (setq user-mail-address
+          (if (= (length +mu4e-personal-addresses) 1)
+              (car +mu4e-personal-addresses)
+            (completing-read
+             "From: "
+             (if-let ((context-addresses
+                       (when mu4e~context-current
+                         (alist-get '+mu4e-personal-addresses (mu4e-context-vars mu4e~context-current)))))
+                 context-addresses
+               (mu4e-personal-addresses)))))))

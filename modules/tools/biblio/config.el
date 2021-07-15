@@ -27,7 +27,7 @@
   (use-package! oc-csl
     :after oc
     :config
-    ;; REVIEW optional; add to docs instead?
+    ;; optional; add to docs instead?
     (setq org-cite-csl-styles-dir "~/.local/share/csl/styles")
     (setq org-cite-csl-locales-dir "~/.local/share/csl/locales"))
 
@@ -39,7 +39,7 @@
     ;;   functions and variable setting in this separate package file. 
     ;;   Is this the best approach, or is there a better way?
     :when (featurep! :completion vertico)
-    :after (org oc bibtex-actions))
+    :after (embark org oc bibtex-actions))
 
   ;;; Org-cite configuration
   (use-package! oc

@@ -26,7 +26,7 @@
 
   (use-package! oc-csl
     :after oc
-    :init
+    :config
     ;; optional; add to docs instead?
     (setq org-cite-csl-styles-dir "~/.local/share/csl/styles")
     (setq org-cite-csl-locales-dir "~/.local/share/csl/locales"))
@@ -40,7 +40,7 @@
 
   ;;; Org-cite configuration
   (use-package! oc
-    :init
+    :config
     ;; activate processor for fontification, preview, etc
     ;; currently using basic, but would prefer org-cite-csl-activate
     (setq org-cite-activate-processor 'basic)
